@@ -37,9 +37,35 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+      - name: Ensure fixed signing key
+        env:
+          KS_PASS: lfang2026
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ ! -f signing/lfang.keystore ]; then
+            mkdir -p signing
+            keytool -genkeypair -keystore signing/lfang.keystore -alias lfang \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" \
+              -dname "CN=lfang,O=lfang,C=CN"
+            git add signing/lfang.keystore
+            git commit -m "chore: add signing key [skip ci]"
+            git push
+          fi
+
+      - name: Sign APK with fixed key
+        env:
+          KS_PASS: lfang2026
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" sign --ks signing/lfang.keystore --ks-pass "pass:$KS_PASS" \
+            --key-pass "pass:$KS_PASS" --out lfang.apk \
+            app/build/outputs/apk/debug/app-debug.apk
+          "$BT/apksigner" verify --print-certs lfang.apk | head -3
+
       - name: Publish APK to repo
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk ./lfang.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lfang.apk
